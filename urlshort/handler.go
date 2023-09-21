@@ -72,3 +72,17 @@ func JSONHandler(jsonBlob []byte, fallback http.Handler) (http.HandlerFunc, erro
 
 	return MapHandler(pathToUrls, fallback), nil
 }
+
+func FileHandler(filename string, fallback http.Handler) (http.HandlerFunc, error) {
+	// load file into struct slice
+	urls, err := loadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	// convert to map
+	pathToUrls := buildMap(urls)
+
+	// return handler
+	return MapHandler(pathToUrls, fallback), nil
+}
