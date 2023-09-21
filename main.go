@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 
 	"github.com/Cpt-Catnip/gc-urlshort/urlshort"
 )
@@ -14,6 +16,12 @@ func main() {
 	// read flags
 	filePathPtr := flag.String("file", DefaultYaml, "filepath to url mappings")
 
+	// loadFile
+	file, err := os.ReadFile(*filePathPtr)
+	if err != nil {
+		panic(err)
+	}
+
 	mux := defaultMux()
 
 	// Build the MapHandler using the mux as the fallback
@@ -23,19 +31,31 @@ func main() {
 	}
 	mapHandler := urlshort.MapHandler(pathsToUrls, mux)
 
-	// Build the YAMLHandler using the mapHandler as the
-	// fallback
-	yaml, err := urlshort.LoadYAML(*filePathPtr)
-	if err != nil {
-		panic(err)
+	var redirectHandler http.HandlerFunc
+
+	isYAML := strings.HasSuffix(*filePathPtr, ".yaml") || strings.HasSuffix(*filePathPtr, ".yml")
+	isJSON := strings.HasSuffix(*filePathPtr, ".json")
+	switch {
+	case isYAML:
+		// Build the YAMLHandler using the mapHandler as the
+		// fallback
+		redirectHandler, err = urlshort.YAMLHandler(file, mapHandler)
+		if err != nil {
+			panic(err)
+		}
+	case isJSON:
+		redirectHandler, err = urlshort.JSONHandler(file, mapHandler)
+		if err != nil {
+			panic(err)
+		}
+	default:
+		parts := strings.Split(*filePathPtr, ".")
+		ext := parts[len(parts)-1]
+		panic(fmt.Errorf("unsupported filetype %s", ext))
 	}
 
-	yamlHandler, err := urlshort.YAMLHandler([]byte(yaml), mapHandler)
-	if err != nil {
-		panic(err)
-	}
 	fmt.Println("Starting the server on :8080")
-	http.ListenAndServe(":8080", yamlHandler)
+	http.ListenAndServe(":8080", redirectHandler)
 }
 
 func defaultMux() *http.ServeMux {
